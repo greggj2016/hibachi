@@ -43,6 +43,7 @@ options = IO.get_arguments()
 from IO import printf
 from deap import algorithms, base, creator, tools, gp
 from utils import three_way_information_gain as three_way_ig
+from MI_library import compute_MI
 from utils import two_way_information_gain as two_way_ig
 import evals
 import itertools
@@ -55,10 +56,13 @@ import pandas as pd
 import random
 import sys
 import time
+import pdb
 ###############################################################################
 if (sys.version_info[0] < 3):
     printf("Python version 3.5 or later is HIGHLY recommended")
     printf("for speed, accuracy and reproducibility.")
+
+# deap location: C:\Users\John Gregg\miniconda3\envs\hibachi\Lib\site-packages\deap
 
 labels = []
 all_igsums = []
@@ -104,7 +108,8 @@ np.random.seed(rseed)
 # x is transposed view of data
 #
 if infile == 'random':
-    data, x = IO.get_random_data(rows,cols,rseed)
+    data = (2.99999999*np.random.rand(rows, cols)).astype(int)
+    x = data.T
 else:
     data, x = IO.read_file(infile)
     rows = len(data)
@@ -113,41 +118,41 @@ else:
 inst_length = len(x)
 ###############################################################################
 # defined a new primitive set for strongly typed GP
-pset = gp.PrimitiveSetTyped("MAIN", itertools.repeat(float, inst_length), 
-                            float, "X")
-# basic operators 
-pset.addPrimitive(ops.addition, [float,float], float)
-pset.addPrimitive(ops.subtract, [float,float], float)
-pset.addPrimitive(ops.multiply, [float,float], float)
-pset.addPrimitive(ops.safediv, [float,float], float)
-pset.addPrimitive(ops.modulus, [float,float], float)
-pset.addPrimitive(ops.plus_mod_two, [float,float], float)
+arr = np.ndarray
+in_types = itertools.repeat(arr, inst_length)
+pset = gp.PrimitiveSetTyped("MAIN", in_types, arr, "X")
+# basic operators
+pset.addPrimitive(ops.addition, [arr, arr], arr)
+pset.addPrimitive(ops.subtract, [arr, arr], arr)
+pset.addPrimitive(ops.multiply, [arr, arr], arr)
+pset.addPrimitive(ops.safediv, [arr, arr], arr)
+pset.addPrimitive(ops.modulus, [arr, arr], arr)
+pset.addPrimitive(ops.plus_mod_two, [arr, arr], arr)
 # logic operators 
-pset.addPrimitive(ops.equal, [float, float], float)
-pset.addPrimitive(ops.not_equal, [float, float], float)
-pset.addPrimitive(ops.gt, [float, float], float)
-pset.addPrimitive(ops.lt, [float, float], float)
-pset.addPrimitive(ops.AND, [float, float], float)
-pset.addPrimitive(ops.OR, [float, float], float)
-pset.addPrimitive(ops.xor, [float,float], float)
+pset.addPrimitive(ops.equal, [arr, arr], arr)
+pset.addPrimitive(ops.not_equal, [arr, arr], arr)
+pset.addPrimitive(ops.gt, [arr, arr], arr)
+pset.addPrimitive(ops.lt, [arr, arr], arr)
+pset.addPrimitive(ops.AND, [arr, arr], arr)
+pset.addPrimitive(ops.OR, [arr, arr], arr)
+pset.addPrimitive(ops.xor, [arr, arr], arr)
 # bitwise operators 
-pset.addPrimitive(ops.bitand, [float,float], float)
-pset.addPrimitive(ops.bitor, [float,float], float)
-pset.addPrimitive(ops.bitxor, [float,float], float)
+pset.addPrimitive(ops.bitand,[arr, arr], arr)
+pset.addPrimitive(ops.bitxor, [arr, arr], arr)
 # unary operators 
-pset.addPrimitive(op.abs, [float], float)
-pset.addPrimitive(ops.NOT, [float], float)
-pset.addPrimitive(ops.factorial, [float], float)
-pset.addPrimitive(ops.left, [float,float], float)
-pset.addPrimitive(ops.right, [float,float], float)
+pset.addPrimitive(ops.ABS, [arr], arr)
+pset.addPrimitive(ops.NOT, [arr], arr)
+pset.addPrimitive(ops.factorial, [arr], arr)
+pset.addPrimitive(ops.left, [arr, arr], arr)
+pset.addPrimitive(ops.right, [arr, arr], arr)
 # large operators 
-pset.addPrimitive(ops.power, [float,float], float)
-pset.addPrimitive(ops.logAofB, [float,float], float)
-pset.addPrimitive(ops.permute, [float,float], float)
-pset.addPrimitive(ops.choose, [float,float], float)
+pset.addPrimitive(ops.power, [arr, arr], arr)
+pset.addPrimitive(ops.logAofB, [arr, arr], arr)
+pset.addPrimitive(ops.permute, [arr, arr], arr)
+pset.addPrimitive(ops.choose, [arr, arr], arr)
 # misc operators 
-pset.addPrimitive(min, [float,float], float)
-pset.addPrimitive(max, [float,float], float)
+pset.addPrimitive(ops.minimum, [arr, arr], arr)
+pset.addPrimitive(ops.maximum, [arr, arr], arr)
 # terminals 
 randval = "rand" + str(random.random())[2:]  # so it can rerun from ipython
 pset.addEphemeralConstant(randval, lambda: random.random() * 100, float)
@@ -180,7 +185,7 @@ def evalData(individual, xdata, xtranspose):
     # Create class possibility.  
     # If class has a unique length of 1, toss it.
     try:
-        result = [(func(*inst[:inst_length])) for inst in data]
+        result = func(*x)
     except:
         return -sys.maxsize, sys.maxsize
 
@@ -225,8 +230,11 @@ def evalData(individual, xdata, xtranspose):
             for i,j in itertools.combinations(range(inst_length),2): 
                 igsum += two_way_ig(xsub[i], xsub[j], result)
         elif(ig == 3): 
-            for i,j,k in itertools.combinations(range(inst_length),3): 
-                igsum += three_way_ig(xsub[i], xsub[j], xsub[k], result)
+            for i,j,k in itertools.combinations(range(inst_length),3):
+                def List(x): return(list(x))
+                # pdb.set_trace()
+                igsum += compute_MI(data[:, [i, j, k]], np.array(result).reshape(-1,1))[-1][0]
+                # igsum += three_way_ig(xsub[i], xsub[j], xsub[k], result)
 
         igsums = np.append(igsums,igsum)
         
@@ -302,11 +310,10 @@ def hibachi(pop,gen,rseed,showall):
         stats.register("std", np.std)
         stats.register("min", np.min)
         stats.register("max", np.max)
-    
+
     pop, log = algorithms.eaMuPlusLambda(pop,toolbox,mu=MU,lambda_=LAMBDA, 
                           cxpb=0.7, mutpb=0.3, ngen=NGEN, stats=stats, 
                           verbose=True, halloffame=hof)
-    
     return pop, stats, hof, log
 ##############################################################################
 # run the program
