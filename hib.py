@@ -57,6 +57,7 @@ import random
 import sys
 import time
 import pdb
+import re
 ###############################################################################
 if (sys.version_info[0] < 3):
     printf("Python version 3.5 or later is HIGHLY recommended")
@@ -166,22 +167,34 @@ else:
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMulti)
 # toolbox 
 toolbox = base.Toolbox()
+
+#from scoop import futures
+#toolbox.register("map", futures.map)
+
 toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=2, max_=5)
 toolbox.register("individual",
                  tools.initIterate,creator.Individual, toolbox.expr)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 toolbox.register("compile", gp.compile, pset=pset)
+
 ##############################################################################
 def evalData(individual, xdata, xtranspose):
+
+    # """ access the individual's functional complexity if needed"""
+    # elements =  np.array(re.split(' |\(|\)|,', str(individual)))
+    # elements = elements[elements != '']
+    # is_var = np.array([el[0] == 'X'for el in elements])
+    # variables = elements[is_var]
+    # functions = elements[is_var == False]
+    
     """ evaluate the individual """
     result = []
     igsums = np.array([])
     x = xdata
     data = xtranspose
-
     # Transform the tree expression in a callable function
     func = toolbox.compile(expr=individual)
-
+        
     # Create class possibility.  
     # If class has a unique length of 1, toss it.
     try:
@@ -191,7 +204,6 @@ def evalData(individual, xdata, xtranspose):
 
     if (len(np.unique(result)) == 1):
         return -sys.maxsize, sys.maxsize
-    
      
     if evaluate == 'normal' or evaluate == 'oddsratio':
         rangeval = 1
@@ -223,19 +235,15 @@ def evalData(individual, xdata, xtranspose):
 
         else:  # normal
             xsub = x
-    
+
         # Calculate information gain between data columns and result
         # and return mean of these calculations
         if(ig == 2): 
             for i,j in itertools.combinations(range(inst_length),2): 
-                igsum += two_way_ig(xsub[i], xsub[j], result)
-        elif(ig == 3): 
-            for i,j,k in itertools.combinations(range(inst_length),3):
-                def List(x): return(list(x))
-                # pdb.set_trace()
-                igsum += compute_MI(data[:, [i, j, k]], np.array(result).reshape(-1,1))[-1][0]
-                # igsum += three_way_ig(xsub[i], xsub[j], xsub[k], result)
-
+                igsum += compute_MI(data[:, [i, j]], np.array(result).reshape(-1,1))[-1][0]
+        elif(ig == 3):
+            for indices in itertools.combinations(range(inst_length),3):
+                igsum += compute_MI(data[:, np.array(indices)], np.array(result).reshape(-1,1))[-1][0]
         igsums = np.append(igsums,igsum)
         
     if evaluate == 'oddsratio':
