@@ -45,6 +45,8 @@ from deap import algorithms, base, creator, tools, gp
 from utils import three_way_information_gain as three_way_ig
 from MI_library import compute_MI
 from utils import two_way_information_gain as two_way_ig
+from joblib import Parallel
+from joblib import delayed
 import evals
 import itertools
 import glob
@@ -70,6 +72,7 @@ all_igsums = []
 #results = []
 start = time.time()
 
+scoop = options['scoop']
 infile = options['file']
 evaluate = options['evaluation']
 population = options['population']
@@ -77,6 +80,7 @@ generations = options['generations']
 rdf_count = options['random_data_files']
 ig = options['information_gain']
 rows = options['rows']
+njobs = options['njobs']
 cols = options['columns']
 Stats = options['statistics']
 Trees = options['trees']
@@ -156,20 +160,18 @@ pset.addPrimitive(ops.minimum, [arr, arr], arr)
 pset.addPrimitive(ops.maximum, [arr, arr], arr)
 # terminals 
 randval = "rand" + str(random.random())[2:]  # so it can rerun from ipython
-pset.addEphemeralConstant(randval, lambda: random.random() * 100, float)
+
 pset.addTerminal(0.0, float)
 pset.addTerminal(1.0, float)
 # creator 
 if evaluate == 'oddsratio':
     creator.create("FitnessMulti", base.Fitness, weights=(1.0, -1.0, -1.0))
+    pdb.set_trace()
 else:
     creator.create("FitnessMulti", base.Fitness, weights=(1.0, -1.0))
 creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMulti)
 # toolbox 
 toolbox = base.Toolbox()
-
-#from scoop import futures
-#toolbox.register("map", futures.map)
 
 toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=2, max_=5)
 toolbox.register("individual",
@@ -239,11 +241,14 @@ def evalData(individual, xdata, xtranspose):
         # Calculate information gain between data columns and result
         # and return mean of these calculations
         if(ig == 2): 
-            for i,j in itertools.combinations(range(inst_length),2): 
-                igsum += compute_MI(data[:, [i, j]], np.array(result).reshape(-1,1))[-1][0]
+            index_sets = np.array(list(itertools.combinations(range(inst_length), 2)))
+            out = Parallel(n_jobs = njobs)(delayed(compute_MI)(data[:, i], np.array(result).reshape(-1,1)) for i in index_sets)
+            igsum = np.sum([MI[-1][0] for MI in out])
         elif(ig == 3):
-            for indices in itertools.combinations(range(inst_length),3):
-                igsum += compute_MI(data[:, np.array(indices)], np.array(result).reshape(-1,1))[-1][0]
+            index_sets = np.array(list(itertools.combinations(range(inst_length), 3)))
+            out = Parallel(n_jobs = njobs)(delayed(compute_MI)(data[:, i], np.array(result).reshape(-1,1)) for i in index_sets)
+            igsum = np.sum([MI[-1][0] for MI in out])
+
         igsums = np.append(igsums,igsum)
         
     if evaluate == 'oddsratio':
@@ -275,6 +280,12 @@ def evalData(individual, xdata, xtranspose):
             return igsum_avg, len(individual)
 
 ##############################################################################
+#def parmap(function, list_input):
+#    return(Parallel(n_jobs = njobs)(delayed(function)(i) for i in list_input))
+#toolbox.register("map", parmap)
+if scoop == True:
+    from scoop import futures
+    toolbox.register("map", futures.map)
 toolbox.register("evaluate", evalData, xdata = x, xtranspose=data)
 toolbox.register("select", tools.selNSGA2)
 toolbox.register("mate", gp.cxOnePoint)
@@ -326,135 +337,140 @@ def hibachi(pop,gen,rseed,showall):
 ##############################################################################
 # run the program
 ##############################################################################
-printf("input data:  %s\n", infile)
-printf("data shape:  %d X %d\n", rows, cols)
-printf("random seed: %d\n", rseed)
-printf("prcnt cases: %d%%\n", prcnt)
-printf("output dir:  %s\n", outdir)
-if(model_file == ""):
-    printf("population:  %d\n", population)
-    printf("generations: %d\n", generations)
-    printf("evaluation:  %s\n", evaluate)
-    printf("ign 2/3way:  %d\n", ig)
-printf("\n")
-# 
-# If model file, ONLY process the model
-#
-if(model_file != ""):
-    individual = IO.read_model(model_file)
-    func = toolbox.compile(expr=individual)
-    result = [(func(*inst[:inst_length])) for inst in data]
-    nresult = evals.reclass_result(x, result, prcnt)
-    outfile = outdir + 'results_using_model_from_' + os.path.basename(model_file) 
-    printf("Write result to %s\n", outfile)
-    IO.create_file(x,nresult,outfile)
-    if Trees == True: # (-T)
-        M = gp.PrimitiveTree.from_string(individual,pset)
-        outtree = outdir + 'tree_' + str(rseed) + '.pdf'
-        printf("saving tree plot to %s\n", outtree)
-        plots.plot_tree(M,rseed,outdir)
-    sys.exit(0)
-#
-# Start evaluation here
-#
-pop, stats, hof, logbook = hibachi(population,generations,rseed,showall)
-best = []
-fitness = []
-for ind in hof:
-    best.append(ind)
-    fitness.append(ind.fitness.values)
 
-printf("\n")
-printf("IND\tFITNESS\t\tMODEL\n")
-for i in range(len(hof)):
-    printf("%d\t%.8f\t%s\n", i, fitness[i][0], str(best[i]))
+if __name__ == "__main__":
 
-if evaluate == 'oddsratio':
-    IO.create_OR_table(best,fitness,rseed,outdir,rowxcol,popstr,
-                       genstr,evaluate,ig)
-
-record = stats.compile(pop)
-printf("statistics: \n")
-printf("%s\n", str(record))
-
-tottime = time.time() - start
-if tottime > 3600:
-    printf("\nRuntime: %.2f hours\n", tottime/3600)
-elif tottime > 60:
-    printf("\nRuntime: %.2f minutes\n", tottime/60)
-else:
-    printf("\nRuntime: %.2f seconds\n", tottime)
-df = pd.DataFrame(logbook)
-del df['gen']
-del df['nevals']
-#
-# sys.exit(0)
-#
-if(infile == 'random'):
-    file1 = 'random0'
-else:
-    file1 = os.path.splitext(os.path.basename(infile))[0]
-#
-# make output directory if it doesn't exist
-#
-if not os.path.exists(outdir):
-    os.makedirs(outdir)
-
-outfile = outdir + "results-" + file1 + "-" + rowxcol + '-' 
-outfile += 's' + str(rseed) + '-' 
-outfile += popstr + '-'
-outfile += genstr + '-'
-outfile += evaluate + "-" + 'ig' + str(ig) + "way.txt" 
-printf("writing data with Class to %s\n", outfile)
-labels.sort(key=op.itemgetter(0),reverse=True)     # sort by igsum (score)
-IO.create_file(x,labels[0][1],outfile)       # use first individual
-#
-# write top model out to file
-#
-moutfile = outdir + "model-" + file1 + "-" + rowxcol + '-' 
-moutfile += 's' + str(rseed) + '-' 
-moutfile += popstr + '-'
-moutfile += genstr + '-'
-moutfile += evaluate + "-" + 'ig' + str(ig) + "way.txt" 
-printf("writing model to %s\n", moutfile)
-IO.write_model(moutfile, best)
-#
-#  Test remaining data files with best individual (-r)
-#
-save_seed = rseed
-if(infile == 'random' and rdf_count > 0):
-    printf("number of random data to generate: %d\n", rdf_count)
-    for i in range(rdf_count):
-        rseed += 1
-        D, X = IO.get_random_data(rows,cols,rseed)
-        nfile = 'random' + str(i+1)
-        printf("%s\n", nfile)
-        individual = best[0]
+    pset.addEphemeralConstant(randval, lambda: random.random() * 100, float)
+    
+    printf("input data:  %s\n", infile)
+    printf("data shape:  %d X %d\n", rows, cols)
+    printf("random seed: %d\n", rseed)
+    printf("prcnt cases: %d%%\n", prcnt)
+    printf("output dir:  %s\n", outdir)
+    if(model_file == ""):
+        printf("population:  %d\n", population)
+        printf("generations: %d\n", generations)
+        printf("evaluation:  %s\n", evaluate)
+        printf("ign 2/3way:  %d\n", ig)
+    printf("\n")
+    # 
+    # If model file, ONLY process the model
+    #
+    if(model_file != ""):
+        individual = IO.read_model(model_file)
         func = toolbox.compile(expr=individual)
-        result = [(func(*inst[:inst_length])) for inst in D]
-        nresult = evals.reclass_result(X, result, prcnt)
-        outfile = outdir + 'model_from-' + file1 
-        outfile += '-using-' + nfile + '-' + str(rseed) + '-' 
-        outfile += str(evaluate) + '-' + str(ig) + "way.txt" 
-        printf("%s\n", outfile)
-        IO.create_file(X,nresult,outfile)
-#
-# plot data if selected
-#
-file = os.path.splitext(os.path.basename(infile))[0]
-if Stats: # (-S)
-    statfile = outdir + "stats-" + file + "-" + evaluate 
-    statfile += "-" + str(rseed) + ".pdf"
-    printf("saving stats to %s\n", statfile)
-    plots.plot_stats(df,statfile)
+        result = [(func(*inst[:inst_length])) for inst in data]
+        nresult = evals.reclass_result(x, result, prcnt)
+        outfile = outdir + 'results_using_model_from_' + os.path.basename(model_file) 
+        printf("Write result to %s\n", outfile)
+        IO.create_file(x,nresult,outfile)
+        if Trees == True: # (-T)
+            M = gp.PrimitiveTree.from_string(individual,pset)
+            outtree = outdir + 'tree_' + str(rseed) + '.pdf'
+            printf("saving tree plot to %s\n", outtree)
+            plots.plot_tree(M,rseed,outdir)
+        sys.exit(0)
+    #
+    # Start evaluation here
+    #
+    pop, stats, hof, logbook = hibachi(population,generations,rseed,showall)
+    best = []
+    fitness = []
+    for ind in hof:
+        best.append(ind)
+        fitness.append(ind.fitness.values)
 
-if Trees: # (-T)
-    treefile = outdir + 'tree_' + str(save_seed) + '.pdf'
-    printf("saving tree plot to %s\n", treefile)
-    plots.plot_tree(best[0],save_seed,outdir)
+    printf("\n")
+    printf("IND\tFITNESS\t\tMODEL\n")
+    for i in range(len(hof)):
+        printf("%d\t%.8f\t%s\n", i, fitness[i][0], str(best[i]))
 
-if Fitness == True: # (-F)
-    outfile = outdir
-    outfile += "fitness-" + file + "-" + evaluate + "-" + str(rseed) + ".pdf"
-    printf("saving fitness plot to %s\n", outfile)
-    plots.plot_fitness(fitness,outfile)
+    if evaluate == 'oddsratio':
+        IO.create_OR_table(best,fitness,rseed,outdir,rowxcol,popstr,
+                           genstr,evaluate,ig)
+
+    record = stats.compile(pop)
+    printf("statistics: \n")
+    printf("%s\n", str(record))
+
+    tottime = time.time() - start
+    if tottime > 3600:
+        printf("\nRuntime: %.2f hours\n", tottime/3600)
+    elif tottime > 60:
+        printf("\nRuntime: %.2f minutes\n", tottime/60)
+    else:
+        printf("\nRuntime: %.2f seconds\n", tottime)
+    df = pd.DataFrame(logbook)
+    del df['gen']
+    del df['nevals']
+    #
+    # sys.exit(0)
+    #
+    if(infile == 'random'):
+        file1 = 'random0'
+    else:
+        file1 = os.path.splitext(os.path.basename(infile))[0]
+    #
+    # make output directory if it doesn't exist
+    #
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    outfile = outdir + "results-" + file1 + "-" + rowxcol + '-' 
+    outfile += 's' + str(rseed) + '-' 
+    outfile += popstr + '-'
+    outfile += genstr + '-'
+    outfile += evaluate + "-" + 'ig' + str(ig) + "way.txt" 
+    printf("writing data with Class to %s\n", outfile)
+    labels.sort(key=op.itemgetter(0),reverse=True)     # sort by igsum (score)
+    IO.create_file(x,labels[0][1],outfile)       # use first individual
+    #
+    # write top model out to file
+    #
+    moutfile = outdir + "model-" + file1 + "-" + rowxcol + '-' 
+    moutfile += 's' + str(rseed) + '-' 
+    moutfile += popstr + '-'
+    moutfile += genstr + '-'
+    moutfile += evaluate + "-" + 'ig' + str(ig) + "way.txt" 
+    printf("writing model to %s\n", moutfile)
+    IO.write_model(moutfile, best)
+    #
+    #  Test remaining data files with best individual (-r)
+    #
+    save_seed = rseed
+    if(infile == 'random' and rdf_count > 0):
+        printf("number of random data to generate: %d\n", rdf_count)
+        for i in range(rdf_count):
+            rseed += 1
+            D, X = IO.get_random_data(rows,cols,rseed)
+            nfile = 'random' + str(i+1)
+            printf("%s\n", nfile)
+            individual = best[0]
+            func = toolbox.compile(expr=individual)
+            result = [(func(*inst[:inst_length])) for inst in D]
+            nresult = evals.reclass_result(X, result, prcnt)
+            outfile = outdir + 'model_from-' + file1 
+            outfile += '-using-' + nfile + '-' + str(rseed) + '-' 
+            outfile += str(evaluate) + '-' + str(ig) + "way.txt" 
+            printf("%s\n", outfile)
+            IO.create_file(X,nresult,outfile)
+    #
+    # plot data if selected
+    #
+    file = os.path.splitext(os.path.basename(infile))[0]
+    if Stats: # (-S)
+        statfile = outdir + "stats-" + file + "-" + evaluate 
+        statfile += "-" + str(rseed) + ".pdf"
+        printf("saving stats to %s\n", statfile)
+        plots.plot_stats(df,statfile)
+
+    if Trees: # (-T)
+        treefile = outdir + 'tree_' + str(save_seed) + '.pdf'
+        printf("saving tree plot to %s\n", treefile)
+        plots.plot_tree(best[0],save_seed,outdir)
+
+    if Fitness == True: # (-F)
+        outfile = outdir
+        outfile += "fitness-" + file + "-" + evaluate + "-" + str(rseed) + ".pdf"
+        printf("saving fitness plot to %s\n", outfile)
+        plots.plot_fitness(fitness,outfile)

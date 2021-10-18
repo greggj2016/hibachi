@@ -47,7 +47,10 @@ def get_arguments():
 
     parser = argparse.ArgumentParser(description = \
         "Run hibachi evaluations on your data")
-
+    parser.add_argument('-ps', '--python_scoop', type=str,
+            help='whether or not to use scoop (default=1)')
+    parser.add_argument('-n', '--njobs', type=int,
+            help='number of parallel jobs for IG calculations (default=1)')
     parser.add_argument('-e', '--evaluation', type=str,
             help='name of evaluation [normal|folds|subsets|noise|oddsratio]' +
                  ' (default=normal) note: oddsratio sets columns == 10')
@@ -89,6 +92,19 @@ def get_arguments():
             help="plot best individual trees",action='store_true')
 
     args = parser.parse_args()
+
+    if(args.python_scoop == "True" or args.python_scoop == "true"):
+        options['python_scoop'] = True
+    elif(args.python_scoop == "False" or args.python_scoop == "false" or args.python_scoop == None):
+        options['python_scoop'] = False
+    else:
+        print("exiting: unrecognized value for -python_scoop argument")
+        exit()
+
+    if(args.njobs == None):
+        options['njobs'] = 1
+    else:
+        options['njobs'] = args.njobs
 
     if(args.file == None):
         printf("filename required\n")
