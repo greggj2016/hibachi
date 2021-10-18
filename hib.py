@@ -72,7 +72,7 @@ all_igsums = []
 #results = []
 start = time.time()
 
-scoop = options['scoop']
+python_scoop = options['python_scoop']
 infile = options['file']
 evaluate = options['evaluation']
 population = options['population']
@@ -101,7 +101,7 @@ if Fitness or Trees or Stats:
 #
 # set up random seed
 #
-if(options['seed'] == -999):
+elif(options['seed'] == -999):
     rseed = random.randint(1,1000)
 else:
     rseed = options['seed']
@@ -122,10 +122,12 @@ else:
 
 inst_length = len(x)
 ###############################################################################
+
 # defined a new primitive set for strongly typed GP
 arr = np.ndarray
 in_types = itertools.repeat(arr, inst_length)
 pset = gp.PrimitiveSetTyped("MAIN", in_types, arr, "X")
+
 # basic operators
 pset.addPrimitive(ops.addition, [arr, arr], arr)
 pset.addPrimitive(ops.subtract, [arr, arr], arr)
@@ -133,6 +135,7 @@ pset.addPrimitive(ops.multiply, [arr, arr], arr)
 pset.addPrimitive(ops.safediv, [arr, arr], arr)
 pset.addPrimitive(ops.modulus, [arr, arr], arr)
 pset.addPrimitive(ops.plus_mod_two, [arr, arr], arr)
+
 # logic operators 
 pset.addPrimitive(ops.equal, [arr, arr], arr)
 pset.addPrimitive(ops.not_equal, [arr, arr], arr)
@@ -141,38 +144,51 @@ pset.addPrimitive(ops.lt, [arr, arr], arr)
 pset.addPrimitive(ops.AND, [arr, arr], arr)
 pset.addPrimitive(ops.OR, [arr, arr], arr)
 pset.addPrimitive(ops.xor, [arr, arr], arr)
+
 # bitwise operators 
 pset.addPrimitive(ops.bitand,[arr, arr], arr)
 pset.addPrimitive(ops.bitxor, [arr, arr], arr)
+
 # unary operators 
 pset.addPrimitive(ops.ABS, [arr], arr)
 pset.addPrimitive(ops.NOT, [arr], arr)
 pset.addPrimitive(ops.factorial, [arr], arr)
 pset.addPrimitive(ops.left, [arr, arr], arr)
 pset.addPrimitive(ops.right, [arr, arr], arr)
+
 # large operators 
 pset.addPrimitive(ops.power, [arr, arr], arr)
 pset.addPrimitive(ops.logAofB, [arr, arr], arr)
 pset.addPrimitive(ops.permute, [arr, arr], arr)
 pset.addPrimitive(ops.choose, [arr, arr], arr)
+
 # misc operators 
 pset.addPrimitive(ops.minimum, [arr, arr], arr)
 pset.addPrimitive(ops.maximum, [arr, arr], arr)
-# terminals 
-randval = "rand" + str(random.random())[2:]  # so it can rerun from ipython
 
+# terminals 
+timeval = str(int(time.time()*1E16))
+# so it can rerun from ipython and concurrent processes sharing a random seed. 
+pset.addEphemeralConstant(timeval, lambda: random.random() * 100, float)
 pset.addTerminal(0.0, float)
 pset.addTerminal(1.0, float)
-# creator 
-if evaluate == 'oddsratio':
-    creator.create("FitnessMulti", base.Fitness, weights=(1.0, -1.0, -1.0))
-    pdb.set_trace()
-else:
-    creator.create("FitnessMulti", base.Fitness, weights=(1.0, -1.0))
-creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMulti)
+
+# creator: the parent process becomes a child process, and when it does,
+# it reruns all of its code. This overwrites its own FitnessMulti and Individual
+# Classes, which is not problematic, but it does produce a warning. The try
+# statement below ensures that the functions will not be overwritten.
+try:
+    globals()[str(os.getpid())]
+except:
+    globals()[str(os.getpid())] = 1
+    if evaluate == 'oddsratio':
+        creator.create("FitnessMulti", base.Fitness, weights=(1.0, -1.0, -1.0))
+    else:
+        creator.create("FitnessMulti", base.Fitness, weights=(1.0, -1.0))
+    creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMulti)
+
 # toolbox 
 toolbox = base.Toolbox()
-
 toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=2, max_=5)
 toolbox.register("individual",
                  tools.initIterate,creator.Individual, toolbox.expr)
@@ -283,7 +299,7 @@ def evalData(individual, xdata, xtranspose):
 #def parmap(function, list_input):
 #    return(Parallel(n_jobs = njobs)(delayed(function)(i) for i in list_input))
 #toolbox.register("map", parmap)
-if scoop == True:
+if python_scoop == True:
     from scoop import futures
     toolbox.register("map", futures.map)
 toolbox.register("evaluate", evalData, xdata = x, xtranspose=data)
@@ -339,8 +355,6 @@ def hibachi(pop,gen,rseed,showall):
 ##############################################################################
 
 if __name__ == "__main__":
-
-    pset.addEphemeralConstant(randval, lambda: random.random() * 100, float)
     
     printf("input data:  %s\n", infile)
     printf("data shape:  %d X %d\n", rows, cols)
