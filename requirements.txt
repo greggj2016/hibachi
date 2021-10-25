@@ -1,10 +1,8 @@
-graphviz
 argparse
 deap
 matplotlib
 networkx
 numpy 
 pandas
-pygraphviz
 scipy
 scikit-learn
