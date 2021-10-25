@@ -4,7 +4,6 @@ deap
 matplotlib
 networkx
 numpy 
-operator
 pandas
 pygraphviz
 scipy
