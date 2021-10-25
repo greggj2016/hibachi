@@ -120,8 +120,6 @@ class test_functions(unittest.TestCase):
                 expected = expected_output[i]
                 i += 1
                 actual = np.round(f_new(*vectors).astype(float)/round_mag(f_new(*vectors)), 8)
-                if not np.all(expected == actual):
-                    pdb.set_trace()
                 equivalency.append(np.all(expected == actual))
 
         message = "at least one primitive failed to produce the expected output"
