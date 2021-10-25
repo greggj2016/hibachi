@@ -77,7 +77,8 @@ functions = df(getmembers(operators, isfunction))
 functions_old = df(getmembers(operators_old, isfunction))
 all_functions = functions.merge(functions_old, how = "inner", on = 0).to_numpy()
 
-cases = read_csv("testing_primitive_input.txt", delimiter = "\t", header = None).to_numpy()
+path = "test_units/testing_primitive_input.txt"
+cases = read_csv(path, delimiter = "\t", header = None).to_numpy()
 cases = [case for case in cases]
 case_names = ["num1", "num2", "bin1", "bin2", "+0", "-0", "+inf", "-inf"]
 case_pairs = list(product(case_names, repeat = 2))
