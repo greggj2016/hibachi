@@ -1,0 +1,13 @@
+graphviz
+argparse
+deap
+glob
+matplotlib
+networkx
+numpy 
+operator
+pandas
+pygraphviz
+scipy
+scikit-learn
+time
