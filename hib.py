@@ -42,9 +42,7 @@ import IO
 options = IO.get_arguments()
 from IO import printf
 from deap import algorithms, base, creator, tools, gp
-from utils import three_way_information_gain as three_way_ig
 from MI_library import compute_MI
-from utils import two_way_information_gain as two_way_ig
 from joblib import Parallel
 from joblib import delayed
 import evals
