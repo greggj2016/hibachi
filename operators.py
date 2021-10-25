@@ -51,8 +51,11 @@ def modulus(a,b):
     a2, b2 = create_no_inf_copy(a, b)
     zeros = (np.round(b, 8) == 0)
     a2[zeros] = 1
-    b2[zeros] = 2  
-    c = np.abs(a2) % b2
+    b2[zeros] = 2
+    a3, b3 = np.abs(a2), np.abs(b2)
+    c = a3 % b2
+    mag_diff_too_big = np.log10(a3/np.max([b3, a3/1E12]) + 1) > 10
+    c[mag_diff_too_big] = 0
     return(bound(c))
 
 #----------------------------------#
@@ -233,13 +236,13 @@ def power(a,b):
     a2 = create_no_inf_copy(a)
     b2 = COPY(b)
     b2[b2 > 100] = 100
-    a_abs = np.abs(a2)  # ensure the denial of complex number creation
+    a_abs = np.abs(a2).astype(float)  # ensure the denial of complex number creation
     zeros = np.round(a_abs, 8) == 0
     ones = np.logical_and(zeros, np.round(b2, 8) == 0)
     div_by_0 = np.logical_and(zeros, b2 < 0)
     b2[div_by_0] = 1
     a_abs[zeros] = 0.1
-    
+
     logc = b2.astype(float)*np.log10(a_abs)
     large_vals = logc > np.log10(MAX)
     logc[large_vals] = 1

@@ -18,13 +18,21 @@ from utils import three_way_information_gain as three_way_ig_old
 from utils import two_way_information_gain as two_way_ig_old
 from utils import mutual_information as one_way_ig_old
 
-# choose is bugged in the original because math.factorial can't handle
-# arbitrarily large numbers, but it still runs and returns incorrect results. 
-# permute is bugged in the original for the same reason as choose
-# gt is functionally equivalent to "less than or equal to" in the original
-# These original functions are therefore excluded from the
-# comparison to my modified versions of the same functions.
-np.random.seed(0)
+# The folloeing original functions are excluded from the comparison
+# to my modified versions of the same functions in the relevant circumstances
+#------------------------------------------------------------------------------------
+#1: choose is bugged in the original because math.factorial can't handle
+# arbitrarily large numbers, but it still runs and returns incorrect results.
+#2: permute is bugged in the original for the same reason as choose
+#3: gt is functionally equivalent to "less than or equal to" in the original
+#4: the original modulus operator can't handle computations where the dividend
+# is much larger than the divisor and the divisor is a float. Note that 
+# np.array([1E30])%1.350000001 returns array([0.77834232]) and
+# np.array([1E30])%1.35 returns array([0.90059481]) and
+# np.array([1E30])%1.349999999 returns array([0.62549671]). This is an
+# example of numerical instability because modulus is peicewise continuous 
+# operator. The new modulus operator simply returns 0 in such cases.
+
 FACTMAX_old = 170
 largest = math.factorial(FACTMAX_old)
 FACTMAX_new = 20.
@@ -69,15 +77,8 @@ functions = df(getmembers(operators, isfunction))
 functions_old = df(getmembers(operators_old, isfunction))
 all_functions = functions.merge(functions_old, how = "inner", on = 0).to_numpy()
 
-numbers1 = np.random.normal(0, 1, 1000)
-numbers2 = np.random.normal(0, 1, 1000)
-binary1 = np.round(np.random.rand(1000), 0)
-binary2 = np.round(np.random.rand(1000), 0)
-pzeros = np.zeros(1000)
-nzeros = -np.zeros(1000)
-pinf = np.inf*np.ones(1000)
-ninf = -np.inf*np.ones(1000)
-cases = [numbers1, numbers2, binary1, binary2, pzeros, nzeros, pinf, ninf]
+cases = read_csv("testing_primitive_input.txt", delimiter = "\t", header = None).to_numpy()
+cases = [case for case in cases]
 case_names = ["num1", "num2", "bin1", "bin2", "+0", "-0", "+inf", "-inf"]
 case_pairs = list(product(case_names, repeat = 2))
     
@@ -103,7 +104,7 @@ class test_functions(unittest.TestCase):
         old_output2 = np.round(np.array(old_output).astype(float)/round_mag(old_output), 8)
         indices = np.all(new_output2 == old_output2, axis = 1) == False
         different_functions = np.array(f_names)[indices]
-        right_answer = np.array(16*['choose'] + 64*['gt'] +  16*['permute'], dtype='<U12')
+        right_answer = np.array(16*['choose'] + 64*['gt'] + 4*['modulus'] + 16*['permute'], dtype='<U12')
         message = "At least 1 hibachi function is inconsistent with the previous version"
         self.assertTrue(np.array_equal(different_functions, right_answer), message)
 
@@ -120,8 +121,6 @@ class test_functions(unittest.TestCase):
                 expected = expected_output[i]
                 i += 1
                 actual = np.round(f_new(*vectors).astype(float)/round_mag(f_new(*vectors)), 8)
-                print("expected: " + str(expected))
-                print("actual: " + str(actual))
                 equivalency.append(np.all(expected == actual))
 
         message = "at least one primitive failed to produce the expected output"
