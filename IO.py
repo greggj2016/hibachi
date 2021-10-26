@@ -47,6 +47,8 @@ def get_arguments():
 
     parser = argparse.ArgumentParser(description = \
         "Run hibachi evaluations on your data")
+    parser.add_argument('-a', '--minor_allele_freq', type=float, nargs = '*',
+            help='whether or not to use scoop (default=1)')
     parser.add_argument('-ps', '--python_scoop', type=str,
             help='whether or not to use scoop (default=1)')
     parser.add_argument('-n', '--njobs', type=int,
@@ -93,6 +95,24 @@ def get_arguments():
 
     args = parser.parse_args()
 
+    if(args.minor_allele_freq == None):
+        options['minor_allele_freq'] = np.array([0.5])
+    elif(len(args.minor_allele_freq) not in [1, args.columns]):
+        message = "\nexiting: user must input either one minor allele "
+        message += "frequency for all columns, or they must input one "
+        message += "minor allele frequency for each column (i.e. "
+        message += "the number OF ARGUMENTS following -a must equal "
+        message += "either 1 or the NUMBER following -C)."
+        print(message)
+        exit()
+    elif(np.any(np.array(args.minor_allele_freq) > 0.5)):
+        print("\nexiting: all minor allele frequencies must be lower than 0.5")
+        exit()
+    elif(np.any(np.array(args.minor_allele_freq) <= 0)):
+        print("\nexiting: all minor allele frequencies must be higher than 0")
+        exit()
+    else:
+        options['minor_allele_freq'] = np.array(args.minor_allele_freq)
     if(args.python_scoop == "True" or args.python_scoop == "true"):
         options['python_scoop'] = True
     elif(args.python_scoop == "False" or args.python_scoop == "false" or args.python_scoop == None):

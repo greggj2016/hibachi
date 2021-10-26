@@ -43,8 +43,6 @@ options = IO.get_arguments()
 from IO import printf
 from deap import algorithms, base, creator, tools, gp
 from MI_library import compute_MI
-from joblib import Parallel
-from joblib import delayed
 import evals
 import itertools
 import glob
@@ -57,7 +55,7 @@ import random
 import sys
 import time
 import pdb
-import re
+# import re
 ###############################################################################
 if (sys.version_info[0] < 3):
     printf("Python version 3.5 or later is HIGHLY recommended")
@@ -70,6 +68,7 @@ all_igsums = []
 #results = []
 start = time.time()
 
+maf = options['minor_allele_freq']
 python_scoop = options['python_scoop']
 infile = options['file']
 evaluate = options['evaluation']
@@ -111,7 +110,12 @@ np.random.seed(rseed)
 # x is transposed view of data
 #
 if infile == 'random':
-    data = (2.99999999*np.random.rand(rows, cols)).astype(int)
+    if len(maf) == 1:
+        maf = np.repeat(maf, cols)
+    probs = np.array([(1 - maf)**2, 2*maf*(1 - maf), maf**2]).T
+    data = np.zeros((rows, cols)).astype(np.int64)
+    for i in range(cols):
+        data[:, i] += np.random.choice(a = [0, 1, 2], size = rows, p = probs[i])
     x = data.T
 else:
     data, x = IO.read_file(infile)
@@ -254,15 +258,9 @@ def evalData(individual, xdata, xtranspose):
 
         # Calculate information gain between data columns and result
         # and return mean of these calculations
-        if(ig == 2): 
-            index_sets = np.array(list(itertools.combinations(range(inst_length), 2)))
-            out = Parallel(n_jobs = njobs)(delayed(compute_MI)(data[:, i], np.array(result).reshape(-1,1)) for i in index_sets)
-            igsum = np.sum([MI[-1][0] for MI in out])
-        elif(ig == 3):
-            index_sets = np.array(list(itertools.combinations(range(inst_length), 3)))
-            out = Parallel(n_jobs = njobs)(delayed(compute_MI)(data[:, i], np.array(result).reshape(-1,1)) for i in index_sets)
-            igsum = np.sum([MI[-1][0] for MI in out])
-
+        index_sets = np.array(list(itertools.combinations(range(inst_length), ig)))
+        out = [compute_MI(data[:, i], np.array(result).reshape(-1,1)) for i in index_sets]
+        igsum = np.sum([MI[-1][0] for MI in out])
         igsums = np.append(igsums,igsum)
         
     if evaluate == 'oddsratio':
@@ -273,7 +271,6 @@ def evalData(individual, xdata, xtranspose):
         
     igsum_avg = np.mean(igsums)
     labels.append((igsum_avg, result)) # save all results
-    all_igsums.append(igsums)
 
     if len(individual) <= 1:
         return -sys.maxsize, sys.maxsize

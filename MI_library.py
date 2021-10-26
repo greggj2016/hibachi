@@ -3,9 +3,6 @@ import pandas as pd
 from copy import deepcopy as COPY
 from itertools import combinations as combos
 from itertools import product as prod
-from utils import three_way_information_gain
-from utils import two_way_information_gain
-from utils import mutual_information
 from time import time
 import pdb
 
