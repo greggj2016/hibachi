@@ -41,6 +41,13 @@ def printf(format, *args):
     import sys
     sys.stdout.write(format % args)
     sys.stdout.flush()
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
 ###############################################################################
 def get_arguments():
     options = dict()
@@ -48,11 +55,9 @@ def get_arguments():
     parser = argparse.ArgumentParser(description = \
         "Run hibachi evaluations on your data")
     parser.add_argument('-a', '--minor_allele_freq', type=float, nargs = '*',
-            help='whether or not to use scoop (default=1)')
-    parser.add_argument('-ps', '--python_scoop', type=str,
-            help='whether or not to use scoop (default=1)')
-    parser.add_argument('-n', '--njobs', type=int,
-            help='number of parallel jobs for IG calculations (default=1)')
+            help='probability of observing minor allele')
+    parser.add_argument('-c', '--covariance_info', type=str,
+            help='either a single column file containing one (positive) correlation coefficient for each SNP pairs or a single (positive) value for all pairs')
     parser.add_argument('-e', '--evaluation', type=str,
             help='name of evaluation [normal|folds|subsets|noise|oddsratio]' +
                  ' (default=normal) note: oddsratio sets columns == 10')
@@ -67,11 +72,15 @@ def get_arguments():
             help="model file to use to create Class from; otherwise \
                   analyze data for new model.  Other options available \
                   when using -m: [f,o,s,P]")
+    parser.add_argument('-n', '--njobs', type=int,
+            help='number of parallel jobs for IG calculations (default=1)')
     parser.add_argument('-o', '--outdir', type=str,
             help='name of output directory (default = .)' +
             ' Note: the directory will be created if it does not exist')
     parser.add_argument("-p", "--population", type=int, 
             help="size of population (default=100)")
+    parser.add_argument('-ps', '--python_scoop', type=str,
+            help='whether or not to use scoop (default=1)')
     parser.add_argument("-r", "--random_data_files", type=int, 
             help="number of random data to use instead of files (default=0)")
     parser.add_argument("-s", "--seed", type=int, 
@@ -83,7 +92,7 @@ def get_arguments():
             help="random data columns (default=3) note: " +
                  "evaluation of oddsratio sets columns to 10")
     parser.add_argument("-F", "--fitness", 
-            help="plot fitness results",action='store_true')
+            help="plot fitness results", action='store_true')
     parser.add_argument("-P", "--percent", type=int,
             help="percentage of case for case/control (default=25)")
     parser.add_argument("-R", "--rows", type=int, 
@@ -113,6 +122,12 @@ def get_arguments():
         exit()
     else:
         options['minor_allele_freq'] = np.array(args.minor_allele_freq)
+    if(args.covariance_info == None):
+        options['covariance_info'] = args.covariance_info
+    elif(is_number(args.covariance_info)):
+        options['covariance_info'] = float(args.covariance_info)
+    else:
+        options['covariance_info'] = args.covariance_info
     if(args.python_scoop == "True" or args.python_scoop == "true"):
         options['python_scoop'] = True
     elif(args.python_scoop == "False" or args.python_scoop == "false" or args.python_scoop == None):

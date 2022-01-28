@@ -43,6 +43,7 @@ options = IO.get_arguments()
 from IO import printf
 from deap import algorithms, base, creator, tools, gp
 from MI_library import compute_MI
+from geno_sim_library import simulate_correlated_SNPs
 import evals
 import itertools
 import glob
@@ -69,6 +70,7 @@ all_igsums = []
 start = time.time()
 
 maf = options['minor_allele_freq']
+cov = options['covariance_info']
 python_scoop = options['python_scoop']
 infile = options['file']
 evaluate = options['evaluation']
@@ -112,10 +114,18 @@ np.random.seed(rseed)
 if infile == 'random':
     if len(maf) == 1:
         maf = np.repeat(maf, cols)
-    probs = np.array([(1 - maf)**2, 2*maf*(1 - maf), maf**2]).T
-    data = np.zeros((rows, cols)).astype(np.int64)
-    for i in range(cols):
-        data[:, i] += np.random.choice(a = [0, 1, 2], size = rows, p = probs[i])
+    if type(cov) == type("file.txt"):
+        cov_info = pd.read_csv(cov, delimiter = "\t", header = None)
+        cov_info = cov_info.to_numpy().reshape(-1)
+        data = simulate_correlated_SNPs(maf, cov_info, rows)
+    elif type(cov) == type(0.5):
+        cov_info = cov*np.ones(np.sum(np.arange(len(maf))))
+        data = simulate_correlated_SNPs(maf, cov_info, rows)
+    else:
+        probs = np.array([(1 - maf)**2, 2*maf*(1 - maf), maf**2]).T
+        data = np.zeros((rows, cols)).astype(np.int64)
+        for i in range(cols):
+            data[:, i] += np.random.choice(a = [0, 1, 2], size = rows, p = probs[i])
     x = data.T
 else:
     data, x = IO.read_file(infile)
