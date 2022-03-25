@@ -85,6 +85,8 @@ def get_arguments():
             help="number of random data to use instead of files (default=0)")
     parser.add_argument("-s", "--seed", type=int, 
             help="random seed to use (default=random value 1-1000)")
+    parser.add_argument("-y", "--L2_penalty", type=float, 
+            help="increasing this makes effects more diverse")
     parser.add_argument("-A", "--showallfitnesses", 
             help="show all fitnesses in a multi objective optimization",
             action='store_true')
@@ -163,6 +165,15 @@ def get_arguments():
         options['seed'] = -999
     else:
         options['seed'] = args.seed
+
+    if(args.L2_penalty == None):
+        options['L2_penalty'] = 0
+    elif(args.L2_penalty < 0):
+        message = "exiting: L2 penalty must exceed or equal 0."
+        print(message)
+        exit()
+    else:
+        options['L2_penalty'] = args.L2_penalty 
 
     if(args.percent == None):
         options['percent'] = 25

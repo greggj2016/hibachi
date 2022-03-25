@@ -78,6 +78,7 @@ population = options['population']
 generations = options['generations']
 rdf_count = options['random_data_files']
 ig = options['information_gain']
+lam = options['L2_penalty']
 rows = options['rows']
 njobs = options['njobs']
 cols = options['columns']
@@ -220,6 +221,7 @@ def evalData(individual, xdata, xtranspose):
     """ evaluate the individual """
     result = []
     igsums = np.array([])
+    igvars = np.array([])
     x = xdata
     data = xtranspose
     # Transform the tree expression in a callable function
@@ -270,18 +272,35 @@ def evalData(individual, xdata, xtranspose):
         # and return mean of these calculations
         index_sets = np.array(list(itertools.combinations(range(inst_length), ig)))
         out = [compute_MI(data[:, i], np.array(result).reshape(-1,1)) for i in index_sets]
-        igsum = np.sum([MI[-1][0] for MI in out])
-        igsums = np.append(igsums,igsum)
-        
+        ig_vals = np.array([MI[-1][0] for MI in out])
+        igsum = np.sum(ig_vals)
+        igsums = np.append(igsums, igsum)
+        igvar = np.mean((np.max(ig_vals) - ig_vals)**2)
+        igvars = np.append(igvars, igvar)
+
     if evaluate == 'oddsratio':
         sum_of_diffs, OR = evals.oddsRatio(xsub, result, inst_length)
         individual.OR = OR
         individual.SOD = sum_of_diffs
         individual.igsum = igsum
         
-    igsum_avg = np.mean(igsums)
+    # Notes for Alena on using pdb.set_trace()
+    # Always check your code values to make sure of the following:
+    #     1) The input is what you believe it is
+    #     2) The output is what you believe it is
+    # type this to pause the code right before the line below its placement:
+    # pdb.set trace() 
+    # note that "pdb.set trace()" needs the same indentation as the line below it
+    # if it is put right here, then "igsum_avg = np.mean(igsums)" will not run
+    # type "n" and press enter to run that line only. Do it again to run the next line. etc.
+    # type "c" to run all code until the next instance of "pdb.set_trace()"
+    # pdb.set_trace is incompatible with multiprocessing, so run hibachi as follows:
+    # python hib.py -f random -s 0 -P 50 -R 10000 -C 10 -p 400 -g 100 -i 3 -a 0.5 -y 0.8
+    igsum_avg = np.mean(igsums)        
+    igvar_avg = np.mean(igvars)
     labels.append((igsum_avg, result)) # save all results
-
+    all_igsums.append(igsums)
+    fit_fun = igsum_avg - (lam)*igvar_avg
     if len(individual) <= 1:
         return -sys.maxsize, sys.maxsize
     else:
@@ -293,12 +312,12 @@ def evalData(individual, xdata, xtranspose):
                 if col_name in individual_str:
                     uniq_col_count += 1
 
-            return igsum, len(individual) / float(uniq_col_count), sum_of_diffs
+            return fitfun, len(individual) / float(uniq_col_count), sum_of_diffs
 #           return igsum, len(individual), sum_of_diffs
         elif evaluate == 'normal':
-            return igsum, len(individual)
+            return fit_fun, len(individual)
         else:
-            return igsum_avg, len(individual)
+            return fit_fun, len(individual)
 
 ##############################################################################
 #def parmap(function, list_input):
@@ -439,7 +458,8 @@ if __name__ == "__main__":
     outfile += 's' + str(rseed) + '-' 
     outfile += popstr + '-'
     outfile += genstr + '-'
-    outfile += evaluate + "-" + 'ig' + str(ig) + "way.txt" 
+    outfile += evaluate + "-" + 'ig' + str(ig) + "way"
+    outfile += "_lam" + str(lam) + ".txt" 
     printf("writing data with Class to %s\n", outfile)
     labels.sort(key=op.itemgetter(0),reverse=True)     # sort by igsum (score)
     IO.create_file(x,labels[0][1],outfile)       # use first individual
@@ -450,7 +470,8 @@ if __name__ == "__main__":
     moutfile += 's' + str(rseed) + '-' 
     moutfile += popstr + '-'
     moutfile += genstr + '-'
-    moutfile += evaluate + "-" + 'ig' + str(ig) + "way.txt" 
+    moutfile += evaluate + "-" + 'ig' + str(ig) + "way"
+    moutfile += "_lam" + str(lam) + ".txt" 
     printf("writing model to %s\n", moutfile)
     IO.write_model(moutfile, best)
     #
@@ -470,7 +491,8 @@ if __name__ == "__main__":
             nresult = evals.reclass_result(X, result, prcnt)
             outfile = outdir + 'model_from-' + file1 
             outfile += '-using-' + nfile + '-' + str(rseed) + '-' 
-            outfile += str(evaluate) + '-' + str(ig) + "way.txt" 
+            outfile += str(evaluate) + '-' + str(ig) + "way"
+            outfile += "_lam" + str(lam) + ".txt" 
             printf("%s\n", outfile)
             IO.create_file(X,nresult,outfile)
     #
