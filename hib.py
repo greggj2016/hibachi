@@ -65,8 +65,8 @@ if (sys.version_info[0] < 3):
 # deap location: C:\Users\John Gregg\miniconda3\envs\hibachi\Lib\site-packages\deap
 
 labels = []
-all_igsums = []
-#results = []
+# all_igsums = []
+# results = []
 start = time.time()
 
 maf = options['minor_allele_freq']
@@ -275,7 +275,7 @@ def evalData(individual, xdata, xtranspose):
         ig_vals = np.array([MI[-1][0] for MI in out])
         igsum = np.sum(ig_vals)
         igsums = np.append(igsums, igsum)
-        igvar = np.mean((np.max(ig_vals) - ig_vals)**2)
+        igvar = np.var(np.sort(ig_vals)[-ig:])
         igvars = np.append(igvars, igvar)
 
     if evaluate == 'oddsratio':
@@ -298,9 +298,9 @@ def evalData(individual, xdata, xtranspose):
     # python hib.py -f random -s 0 -P 50 -R 10000 -C 10 -p 400 -g 100 -i 3 -a 0.5 -y 0.8
     igsum_avg = np.mean(igsums)        
     igvar_avg = np.mean(igvars)
-    labels.append((igsum_avg, result)) # save all results
-    all_igsums.append(igsums)
-    fit_fun = igsum_avg - (lam)*igvar_avg
+    fit_fun = igsum_avg - lam*igvar_avg
+    labels.append((fit_fun, result)) # save all results
+    # all_igsums.append(igsums)
     if len(individual) <= 1:
         return -sys.maxsize, sys.maxsize
     else:
@@ -380,6 +380,8 @@ def hibachi(pop,gen,rseed,showall):
 
 if __name__ == "__main__":
     
+    time1 = time.strftime("%H:%M:%S", time.localtime())
+    printf("start time:  %s\n", time1)
     printf("input data:  %s\n", infile)
     printf("data shape:  %d X %d\n", rows, cols)
     printf("random seed: %d\n", rseed)
@@ -431,6 +433,9 @@ if __name__ == "__main__":
     printf("statistics: \n")
     printf("%s\n", str(record))
 
+    time2 = time.strftime("%H:%M:%S", time.localtime())
+    printf("computation end time:  %s\n", time2)
+
     tottime = time.time() - start
     if tottime > 3600:
         printf("\nRuntime: %.2f hours\n", tottime/3600)
@@ -438,6 +443,10 @@ if __name__ == "__main__":
         printf("\nRuntime: %.2f minutes\n", tottime/60)
     else:
         printf("\nRuntime: %.2f seconds\n", tottime)
+
+    time3 = time.strftime("%H:%M:%S", time.localtime())
+    printf("time statements end time:  %s\n", time3)
+
     df = pd.DataFrame(logbook)
     del df['gen']
     del df['nevals']
@@ -460,12 +469,22 @@ if __name__ == "__main__":
     outfile += genstr + '-'
     outfile += evaluate + "-" + 'ig' + str(ig) + "way"
     outfile += "_lam" + str(lam) + ".txt" 
+
+    time4 = time.strftime("%H:%M:%S", time.localtime())
+    printf("file definition end time:  %s\n", time4)
+
     printf("writing data with Class to %s\n", outfile)
-    labels.sort(key=op.itemgetter(0),reverse=True)     # sort by igsum (score)
+    labels.sort(key = op.itemgetter(0), reverse=True)
+    time5 = time.strftime("%H:%M:%S", time.localtime())
+    printf("sorting end time:  %s\n", time5)
+
     IO.create_file(x,labels[0][1],outfile)       # use first individual
     #
     # write top model out to file
     #
+    time6 = time.strftime("%H:%M:%S", time.localtime())
+    printf("file writing end time:  %s\n", time6)
+
     moutfile = outdir + "model-" + file1 + "-" + rowxcol + '-' 
     moutfile += 's' + str(rseed) + '-' 
     moutfile += popstr + '-'
@@ -473,7 +492,13 @@ if __name__ == "__main__":
     moutfile += evaluate + "-" + 'ig' + str(ig) + "way"
     moutfile += "_lam" + str(lam) + ".txt" 
     printf("writing model to %s\n", moutfile)
+    time7 = time.strftime("%H:%M:%S", time.localtime())
+    printf("file2 definition end time:  %s\n", time7)
+
     IO.write_model(moutfile, best)
+    time8 = time.strftime("%H:%M:%S", time.localtime())
+    printf("file2 writing end time:  %s\n", time8)
+
     #
     #  Test remaining data files with best individual (-r)
     #
@@ -495,6 +520,10 @@ if __name__ == "__main__":
             outfile += "_lam" + str(lam) + ".txt" 
             printf("%s\n", outfile)
             IO.create_file(X,nresult,outfile)
+
+    time9 = time.strftime("%H:%M:%S", time.localtime())
+    printf("other1 end time:  %s\n", time9)
+
     #
     # plot data if selected
     #
@@ -505,13 +534,23 @@ if __name__ == "__main__":
         printf("saving stats to %s\n", statfile)
         plots.plot_stats(df,statfile)
 
+    time10 = time.strftime("%H:%M:%S", time.localtime())
+    printf("other2 end time:  %s\n", time10)
+
     if Trees: # (-T)
         treefile = outdir + 'tree_' + str(save_seed) + '.pdf'
         printf("saving tree plot to %s\n", treefile)
         plots.plot_tree(best[0],save_seed,outdir)
+
+    time11 = time.strftime("%H:%M:%S", time.localtime())
+    printf("other3 end time:  %s\n", time11)
 
     if Fitness == True: # (-F)
         outfile = outdir
         outfile += "fitness-" + file + "-" + evaluate + "-" + str(rseed) + ".pdf"
         printf("saving fitness plot to %s\n", outfile)
         plots.plot_fitness(fitness,outfile)
+
+    time12 = time.strftime("%H:%M:%S", time.localtime())
+    printf("other4 end time:  %s\n", time12)
+
