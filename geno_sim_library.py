@@ -110,7 +110,7 @@ def simulate_correlated_SNPs(mafs, R_vec, N):
     return(X.T)
 
 '''
-mafs = [0.5]*10
-R_vec = [0.5]*np.sum(np.arange(10)) 
-simulate_correlated_SNPs(mafs, R_vec, 10000000)
+# mafs = [0.5]*10
+# R_vec = [0.5]*np.sum(np.arange(10)) 
+# simulate_correlated_SNPs(mafs, R_vec, 10000000)
 '''
