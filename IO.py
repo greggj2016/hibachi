@@ -58,6 +58,10 @@ def get_arguments():
             help='probability of observing minor allele')
     parser.add_argument('-c', '--covariance_info', type=str,
             help='either a single column file containing one (positive) correlation coefficient for each SNP pairs or a single (positive) value for all pairs')
+    parser.add_argument('-di', '--debug_in', type=str,
+            help='specifies a input debug log to compare this run against (will dramatically increase runtime)')
+    parser.add_argument('-do', '--debug_out', type=str,
+            help='specifies a output filename for a debug log (will dramatically increase runtime)')
     parser.add_argument('-e', '--evaluation', type=str,
             help='name of evaluation [normal|folds|subsets|noise|oddsratio]' +
                  ' (default=normal) note: oddsratio sets columns == 10')
@@ -124,13 +128,26 @@ def get_arguments():
         exit()
     else:
         options['minor_allele_freq'] = np.array(args.minor_allele_freq)
+
     if(args.covariance_info == None):
         options['covariance_info'] = args.covariance_info
     elif(is_number(args.covariance_info)):
         options['covariance_info'] = float(args.covariance_info)
     else:
         options['covariance_info'] = args.covariance_info
+
+    if(args.debug_out != None and args.debug_in != None):
+        print("exiting: user not meant to use both debugging modes simultaneously.")
+        print("first use --debug_out FILENAME with an old hibachi version to produce a log of expected output.")
+        print("then use --debug_in FILENAME with a new hibachi version to compare its output to the old output in FILENAME.")
+        print("the python debugger will run pdb.set_trace() at each detected difference.")
+    else:
+        options['debug_out'] = args.debug_out
+        options['debug_in'] = args.debug_in
+
     if(args.python_scoop == "True" or args.python_scoop == "true"):
+        if(args.debug_out != None or args.debug_in != None):
+            print("exiting: multiprocessing and the hibachi debugger may not simultaneously be used")
         options['python_scoop'] = True
     elif(args.python_scoop == "False" or args.python_scoop == "false" or args.python_scoop == None):
         options['python_scoop'] = False
@@ -197,6 +214,11 @@ def get_arguments():
 
     if(args.generations == None):
         options['generations'] = 40
+    elif(((args.debug_out) != None or (args.debug_in != None)) and args.generations != 0):
+        import pdb
+        pdb.set_trace()
+        print("generations being set to 0 for debug mode!")
+        options['generations'] = 0
     else:
         options['generations'] = args.generations
 

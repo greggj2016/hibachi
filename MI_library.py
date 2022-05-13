@@ -10,7 +10,7 @@ def get_joint_probs(X, y, N, P, subset_lists):
     data = np.concatenate((X, y), axis = 1)
     unique_Xval_lists = np.array([np.unique(X[:, i]).tolist() for i in range(P)], dtype = object)
     unique_val_lists = np.array([np.unique(data[:, i]).tolist() for i in range(P + 1)], dtype = object)
-    p_y = np.sum(y == np.unique(y), axis = 0)/len(y)
+    p_y = np.sum((y == np.unique(y)), axis = 0, dtype = np.float32)/len(y)
     joint_prob_sets = []
     joint_pseudoprob_sets = []
     for i in range(len(subset_lists)):
@@ -26,16 +26,17 @@ def get_joint_probs(X, y, N, P, subset_lists):
         k_way_joint_probs = []
         k_way_joint_pseudoprobs = []
         for k in range(len(unique_val_sets)):
-            uv_set = np.array(unique_val_sets[k])
-            uXv_set = np.array(unique_Xval_sets[k])
+            # dtype =  np.float32
+            uv_set = np.array(unique_val_sets[k], dtype = np.int8)
+            uXv_set = np.array(unique_Xval_sets[k], dtype = np.int8)
             X_subset = X_subsets[:, k, :]
             data_subset = np.concatenate((y, X_subset), axis = 1)
             instances = (data_subset == uv_set.reshape(len(uv_set), 1, len(uv_set[0])))
-            probs = np.sum(np.all(instances, axis = 2), axis = 1)/N
+            probs = np.sum(np.all(instances, axis = 2), axis = 1, dtype = np.float32)/N
             k_way_joint_probs.append(probs)
             Xinstances = (X_subset == uXv_set.reshape(len(uXv_set), 1, len(uXv_set[0])))
-            Xprobs = np.sum(np.all(Xinstances, axis = 2), axis = 1)/N
-            pseudoprobs = np.outer(p_y, Xprobs).reshape(-1) 
+            Xprobs = np.sum(np.all(Xinstances, axis = 2), axis = 1, dtype = np.float32)/N
+            pseudoprobs = np.outer(p_y, Xprobs).reshape(-1)
             k_way_joint_pseudoprobs.append(pseudoprobs)
         joint_prob_sets.append(k_way_joint_probs)
         joint_pseudoprob_sets.append(k_way_joint_pseudoprobs)
@@ -51,8 +52,8 @@ def compute_MI(X, y):
         joint_pseudoprobs = joint_pseudoprob_sets[i]
         MI_vals = []
         for k in range(len(joint_probs)):
-            p = joint_probs[k].astype(float)
-            p_pseudo = joint_pseudoprobs[k].astype(float)
+            p = joint_probs[k]
+            p_pseudo = joint_pseudoprobs[k]
             MI_log_part = np.log2((p + 1E-20)/(p_pseudo + 1E-20))
             MI_vals.append(np.sum(p*MI_log_part))
         MI_sets.append(MI_vals)
@@ -60,7 +61,7 @@ def compute_MI(X, y):
     for i in range(len(MI_sets)):
         for k in range(i):
             old_MI_dim = len(subset_lists[k][0])
-            this_subset = np.array( old_MI_dim*[subset_lists[i]]).transpose((1, 0, 2))
+            this_subset = np.array(old_MI_dim*[subset_lists[i]]).transpose((1, 0, 2))
             broadcasting_dims = (len(subset_lists[k]), 1,  old_MI_dim, 1)
             old_subset = subset_lists[k].reshape(broadcasting_dims)
             related_subsets = np.all(np.any(old_subset == this_subset, axis = 3), axis = 2)

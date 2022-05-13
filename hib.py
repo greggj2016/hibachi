@@ -73,7 +73,10 @@ maf = options['minor_allele_freq']
 cov = options['covariance_info']
 python_scoop = options['python_scoop']
 infile = options['file']
-evaluate = options['evaluation']
+try:
+    evaluate = int(options['evaluation'])
+except:
+    evaluate = options['evaluation']
 population = options['population']
 generations = options['generations']
 rdf_count = options['random_data_files']
@@ -124,7 +127,7 @@ if infile == 'random':
         data = simulate_correlated_SNPs(maf, cov_info, rows)
     else:
         probs = np.array([(1 - maf)**2, 2*maf*(1 - maf), maf**2]).T
-        data = np.zeros((rows, cols)).astype(np.int64)
+        data = np.zeros((rows, cols), dtype = np.float64)
         for i in range(cols):
             data[:, i] += np.random.choice(a = [0, 1, 2], size = rows, p = probs[i])
     x = data.T
@@ -132,6 +135,10 @@ else:
     data, x = IO.read_file(infile)
     rows = len(data)
     cols = len(x)
+
+#from copy import deepcopy as COPY
+#data_COPY = COPY(data)
+#x_COPY = COPY(x)
 
 inst_length = len(x)
 ###############################################################################
@@ -231,18 +238,51 @@ def evalData(individual, xdata, xtranspose):
     # If class has a unique length of 1, toss it.
     try:
         result = func(*x)
+        #if np.any(x != x_COPY) or np.any(data != data_COPY):
+        #    pdb.set_trace()
+        #    result = func(*x)
+        vec = []
+        '''
+            i, figs, part2 = str(i), 6, ''
+            if 'e' in i:
+                part2 += 'e' + i.split('e')[-1]
+                i = i.split('e')[0]
+            if '-' in i and '.' in i:
+                extra = 3
+            elif '-' in i or '.' in i:
+                extra = 2
+            else:
+                extra = 1
+            if len(i) < figs: i += '0'
+            figs = np.min([len(i), figs + extra])
+            num = str(np.round(float(i[:figs]), figs - 1))[:-1]
+            vec.append(float(num + part2))
+        result = np.array(vec)
+        '''
+        #print(np.sum(result))
+        #print(result)
+        #if np.round(np.sum(result), 1) == 1875.0:
+        #    pdb.set_trace()
+        #    result = func(*x)
     except:
+        #if np.any(x != x_COPY) or np.any(data != data_COPY):
+        #    pdb.set_trace()
+        #    result = func(*x)
+        #pdb.set_trace()
+        print("!!!!!!!!!!!!!ERROR!!!!!!!!!")
         return -sys.maxsize, sys.maxsize
 
     if (len(np.unique(result)) == 1):
+        #print(-1)
         return -sys.maxsize, sys.maxsize
      
-    if evaluate == 'normal' or evaluate == 'oddsratio':
-        rangeval = 1
+    if evaluate in ['normal', 'oddsratio'] or type(evaluate) == type(2):
+        rangeval = numfolds = 1  # must be equal
+        x_folds = evals.getfolds(x, numfolds)
 
     elif evaluate == 'folds':
         rangeval = numfolds = 10  # must be equal
-        folds = evals.getfolds(x, numfolds)
+        x_folds = evals.getfolds(x, numfolds)
 
     elif evaluate == 'subsets':
         rangeval = 10
@@ -251,32 +291,33 @@ def evalData(individual, xdata, xtranspose):
     elif evaluate == 'noise':
         rangeval = 10
         percent = 10
-
+    
     result = evals.reclass_result(x, result, prcnt)
+    y_folds = evals.getfolds(np.array(result).reshape(1,-1), numfolds)
 
     for m in range(rangeval):
         igsum = 0 
-        if evaluate == 'folds': 
-            xsub = list(folds[m])
 
-        elif evaluate == 'subsets': 
+        if evaluate == 'subsets': 
             xsub = evals.subsets(x,percent)
 
         elif evaluate == 'noise': 
             xsub = evals.addnoise(x,percent)
 
-        else:  # normal
-            xsub = x
-
-        # Calculate information gain between data columns and result
-        # and return mean of these calculations
-        index_sets = np.array(list(itertools.combinations(range(inst_length), ig)))
-        out = [compute_MI(data[:, i], np.array(result).reshape(-1,1)) for i in index_sets]
-        ig_vals = np.array([MI[-1][0] for MI in out])
-        igsum = np.sum(ig_vals)
-        igsums = np.append(igsums, igsum)
-        igvar = np.var(np.sort(ig_vals)[-ig:])
-        igvars = np.append(igvars, igvar)
+        else:  # normal or folds
+            # Calculate information gain between data columns and result
+            # and return mean of these calculations
+            index_sets = np.array(list(itertools.combinations(range(inst_length), ig)))
+            data8, result8 = (x_folds[m].T).astype(np.int8), np.array(y_folds[m]).astype(np.int8)
+            if type(evaluate) == type(2): 
+                indices = np.random.choice(np.arange(len(data8)), evaluate, replace = False)
+                data8, result8 = data8[indices], result8[0, indices]
+            out = [compute_MI(data8[:, i], result8.reshape(-1,1)) for i in index_sets]
+            ig_vals = np.array([MI[-1][0] for MI in out])
+            igsum = np.sum(ig_vals)
+            igsums = np.append(igsums, igsum)
+            igvar = np.var(np.sort(ig_vals)[-ig:])
+            igvars = np.append(igvars, igvar)
 
     if evaluate == 'oddsratio':
         sum_of_diffs, OR = evals.oddsRatio(xsub, result, inst_length)
@@ -299,6 +340,7 @@ def evalData(individual, xdata, xtranspose):
     igsum_avg = np.mean(igsums)        
     igvar_avg = np.mean(igvars)
     fit_fun = igsum_avg - lam*igvar_avg
+    #print(fit_fun)
     labels.append((fit_fun, result)) # save all results
     # all_igsums.append(igsums)
     if len(individual) <= 1:
@@ -457,7 +499,7 @@ if __name__ == "__main__":
         file1 = 'random0'
     else:
         file1 = os.path.splitext(os.path.basename(infile))[0]
-    #
+    # 
     # make output directory if it doesn't exist
     #
     if not os.path.exists(outdir):
@@ -467,7 +509,7 @@ if __name__ == "__main__":
     outfile += 's' + str(rseed) + '-' 
     outfile += popstr + '-'
     outfile += genstr + '-'
-    outfile += evaluate + "-" + 'ig' + str(ig) + "way"
+    outfile += str(evaluate) + "-" + 'ig' + str(ig) + "way"
     outfile += "_lam" + str(lam) + ".txt" 
 
     time4 = time.strftime("%H:%M:%S", time.localtime())
@@ -489,7 +531,7 @@ if __name__ == "__main__":
     moutfile += 's' + str(rseed) + '-' 
     moutfile += popstr + '-'
     moutfile += genstr + '-'
-    moutfile += evaluate + "-" + 'ig' + str(ig) + "way"
+    moutfile += str(evaluate) + "-" + 'ig' + str(ig) + "way"
     moutfile += "_lam" + str(lam) + ".txt" 
     printf("writing model to %s\n", moutfile)
     time7 = time.strftime("%H:%M:%S", time.localtime())
@@ -529,7 +571,7 @@ if __name__ == "__main__":
     #
     file = os.path.splitext(os.path.basename(infile))[0]
     if Stats: # (-S)
-        statfile = outdir + "stats-" + file + "-" + evaluate 
+        statfile = outdir + "stats-" + file + "-" + str(evaluate) 
         statfile += "-" + str(rseed) + ".pdf"
         printf("saving stats to %s\n", statfile)
         plots.plot_stats(df,statfile)
@@ -547,7 +589,7 @@ if __name__ == "__main__":
 
     if Fitness == True: # (-F)
         outfile = outdir
-        outfile += "fitness-" + file + "-" + evaluate + "-" + str(rseed) + ".pdf"
+        outfile += "fitness-" + file + "-" + str(evaluate) + "-" + str(rseed) + ".pdf"
         printf("saving fitness plot to %s\n", outfile)
         plots.plot_fitness(fitness,outfile)
 
