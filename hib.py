@@ -121,13 +121,13 @@ if infile == 'random':
     if type(cov) == type("file.txt"):
         cov_info = pd.read_csv(cov, delimiter = "\t", header = None)
         cov_info = cov_info.to_numpy().reshape(-1)
-        data = simulate_correlated_SNPs(maf, cov_info, rows)
+        data = simulate_correlated_SNPs(maf, cov_info, rows).astype(np.int8)
     elif type(cov) == type(0.5):
         cov_info = cov*np.ones(np.sum(np.arange(len(maf))))
-        data = simulate_correlated_SNPs(maf, cov_info, rows)
+        data = simulate_correlated_SNPs(maf, cov_info, rows).astype(np.int8)
     else:
         probs = np.array([(1 - maf)**2, 2*maf*(1 - maf), maf**2]).T
-        data = np.zeros((rows, cols), dtype = np.float64)
+        data = np.zeros((rows, cols), dtype = np.int8)
         for i in range(cols):
             data[:, i] += np.random.choice(a = [0, 1, 2], size = rows, p = probs[i])
     x = data.T
@@ -137,8 +137,8 @@ else:
     cols = len(x)
 
 #from copy import deepcopy as COPY
-#data_COPY = COPY(data)
 #x_COPY = COPY(x)
+#data_COPY = COPY(data)
 
 inst_length = len(x)
 ###############################################################################
@@ -233,7 +233,7 @@ def evalData(individual, xdata, xtranspose):
     data = xtranspose
     # Transform the tree expression in a callable function
     func = toolbox.compile(expr=individual)
-        
+
     # Create class possibility.  
     # If class has a unique length of 1, toss it.
     try:
@@ -241,34 +241,26 @@ def evalData(individual, xdata, xtranspose):
         #if np.any(x != x_COPY) or np.any(data != data_COPY):
         #    pdb.set_trace()
         #    result = func(*x)
-        vec = []
-        '''
-            i, figs, part2 = str(i), 6, ''
-            if 'e' in i:
-                part2 += 'e' + i.split('e')[-1]
-                i = i.split('e')[0]
-            if '-' in i and '.' in i:
-                extra = 3
-            elif '-' in i or '.' in i:
-                extra = 2
-            else:
-                extra = 1
-            if len(i) < figs: i += '0'
-            figs = np.min([len(i), figs + extra])
-            num = str(np.round(float(i[:figs]), figs - 1))[:-1]
-            vec.append(float(num + part2))
-        result = np.array(vec)
-        '''
         #print(np.sum(result))
-        #print(result)
-        #if np.round(np.sum(result), 1) == 1875.0:
+        #print(result[:10])
+        #TODO
+        #7531.0
+        #10000.0 HIB4
+        #7531.0
+        #10488.0 HIB2
+        #if np.round(np.sum(result), 1) == 2517.0:
         #    pdb.set_trace()
         #    result = func(*x)
+        if type(result[0]) == np.bool_:
+            result = result.astype(np.float32)
+        vec = []
+
     except:
         #if np.any(x != x_COPY) or np.any(data != data_COPY):
         #    pdb.set_trace()
         #    result = func(*x)
-        #pdb.set_trace()
+        pdb.set_trace()
+        func(*x)
         print("!!!!!!!!!!!!!ERROR!!!!!!!!!")
         return -sys.maxsize, sys.maxsize
 
@@ -595,4 +587,3 @@ if __name__ == "__main__":
 
     time12 = time.strftime("%H:%M:%S", time.localtime())
     printf("other4 end time:  %s\n", time12)
-
