@@ -64,9 +64,6 @@ if (sys.version_info[0] < 3):
 
 # deap location: C:\Users\John Gregg\miniconda3\envs\hibachi\Lib\site-packages\deap
 
-labels = []
-# all_igsums = []
-# results = []
 start = time.time()
 
 maf = options['minor_allele_freq']
@@ -92,6 +89,7 @@ prcnt = options['percent']
 outdir = options['outdir']
 showall = options['showallfitnesses']
 model_file = options['model_file']
+
 #
 # define output variables
 #
@@ -232,40 +230,21 @@ def evalData(individual, xdata, xtranspose):
     x = xdata
     data = xtranspose
     # Transform the tree expression in a callable function
+    names = [el.name for el in individual]
+    inds = [int(n[1:]) for n in names if n[0] == 'X' and n[1] in np.arange(10).astype(str)]
+    inds = np.unique(inds) - 1
     func = toolbox.compile(expr=individual)
 
     # Create class possibility.  
     # If class has a unique length of 1, toss it.
     try:
         result = func(*x)
-        #if np.any(x != x_COPY) or np.any(data != data_COPY):
-        #    pdb.set_trace()
-        #    result = func(*x)
-        #print(np.sum(result))
-        #print(result[:10])
-        #TODO
-        #7531.0
-        #10000.0 HIB4
-        #7531.0
-        #10488.0 HIB2
-        #if np.round(np.sum(result), 1) == 2517.0:
-        #    pdb.set_trace()
-        #    result = func(*x)
-        if type(result[0]) == np.bool_:
-            result = result.astype(np.float32)
-        vec = []
+        if (len(np.unique(result)) == 1):
+            return -sys.maxsize, sys.maxsize
+        result = evals.reclass_result(func(*x), prcnt)
 
     except:
-        #if np.any(x != x_COPY) or np.any(data != data_COPY):
-        #    pdb.set_trace()
-        #    result = func(*x)
-        pdb.set_trace()
-        func(*x)
         print("!!!!!!!!!!!!!ERROR!!!!!!!!!")
-        return -sys.maxsize, sys.maxsize
-
-    if (len(np.unique(result)) == 1):
-        #print(-1)
         return -sys.maxsize, sys.maxsize
      
     if evaluate in ['normal', 'oddsratio'] or type(evaluate) == type(2):
@@ -284,7 +263,6 @@ def evalData(individual, xdata, xtranspose):
         rangeval = 10
         percent = 10
     
-    result = evals.reclass_result(x, result, prcnt)
     y_folds = evals.getfolds(np.array(result).reshape(1,-1), numfolds)
 
     for m in range(rangeval):
@@ -297,19 +275,23 @@ def evalData(individual, xdata, xtranspose):
             xsub = evals.addnoise(x,percent)
 
         else:  # normal or folds
-            # Calculate information gain between data columns and result
-            # and return mean of these calculations
-            index_sets = np.array(list(itertools.combinations(range(inst_length), ig)))
-            data8, result8 = (x_folds[m].T).astype(np.int8), np.array(y_folds[m]).astype(np.int8)
-            if type(evaluate) == type(2): 
-                indices = np.random.choice(np.arange(len(data8)), evaluate, replace = False)
-                data8, result8 = data8[indices], result8[0, indices]
-            out = [compute_MI(data8[:, i], result8.reshape(-1,1)) for i in index_sets]
-            ig_vals = np.array([MI[-1][0] for MI in out])
-            igsum = np.sum(ig_vals)
-            igsums = np.append(igsums, igsum)
-            igvar = np.var(np.sort(ig_vals)[-ig:])
-            igvars = np.append(igvars, igvar)
+            if len(inds) < ig: 
+                igsum = 0
+                igsums = np.append(igsums, igsum)
+                igvar = 1
+                igvars = np.append(igvars, igvar)
+            else: 
+                index_sets = np.array(list(itertools.combinations(inds, ig)))
+                data8, result8 = (x_folds[m].T).astype(np.int8), np.array(y_folds[m]).astype(np.int8)
+                if type(evaluate) == type(2): 
+                    indices = np.random.choice(np.arange(len(data8)), evaluate, replace = False)
+                    data8, result8 = data8[indices], result8[0, indices]
+                out = [compute_MI(data8[:, i], result8.reshape(-1,1)) for i in index_sets]
+                ig_vals = np.array([MI[-1][0] for MI in out])
+                igsum = np.sum(ig_vals)
+                igsums = np.append(igsums, igsum)
+                igvar = np.var(np.sort(ig_vals)[-ig:])
+                igvars = np.append(igvars, igvar)
 
     if evaluate == 'oddsratio':
         sum_of_diffs, OR = evals.oddsRatio(xsub, result, inst_length)
@@ -317,24 +299,11 @@ def evalData(individual, xdata, xtranspose):
         individual.SOD = sum_of_diffs
         individual.igsum = igsum
         
-    # Notes for Alena on using pdb.set_trace()
-    # Always check your code values to make sure of the following:
-    #     1) The input is what you believe it is
-    #     2) The output is what you believe it is
-    # type this to pause the code right before the line below its placement:
-    # pdb.set trace() 
-    # note that "pdb.set trace()" needs the same indentation as the line below it
-    # if it is put right here, then "igsum_avg = np.mean(igsums)" will not run
-    # type "n" and press enter to run that line only. Do it again to run the next line. etc.
-    # type "c" to run all code until the next instance of "pdb.set_trace()"
-    # pdb.set_trace is incompatible with multiprocessing, so run hibachi as follows:
-    # python hib.py -f random -s 0 -P 50 -R 10000 -C 10 -p 400 -g 100 -i 3 -a 0.5 -y 0.8
     igsum_avg = np.mean(igsums)        
     igvar_avg = np.mean(igvars)
     fit_fun = igsum_avg - lam*igvar_avg
-    #print(fit_fun)
-    labels.append((fit_fun, result)) # save all results
-    # all_igsums.append(igsums)
+    # print(fit_fun)
+    # pdb.set_trace()
     if len(individual) <= 1:
         return -sys.maxsize, sys.maxsize
     else:
@@ -347,7 +316,6 @@ def evalData(individual, xdata, xtranspose):
                     uniq_col_count += 1
 
             return fitfun, len(individual) / float(uniq_col_count), sum_of_diffs
-#           return igsum, len(individual), sum_of_diffs
         elif evaluate == 'normal':
             return fit_fun, len(individual)
         else:
@@ -405,7 +373,7 @@ def hibachi(pop,gen,rseed,showall):
         stats.register("max", np.max)
 
     pop, log = algorithms.eaMuPlusLambda(pop,toolbox,mu=MU,lambda_=LAMBDA, 
-                          cxpb=0.7, mutpb=0.3, ngen=NGEN, stats=stats, 
+                          cxpb=0.70, mutpb=0.30, ngen=NGEN, stats=stats, 
                           verbose=True, halloffame=hof)
     return pop, stats, hof, log
 ##############################################################################
@@ -448,11 +416,25 @@ if __name__ == "__main__":
     # Start evaluation here
     #
     pop, stats, hof, logbook = hibachi(population,generations,rseed,showall)
-    best = []
-    fitness = []
-    for ind in hof:
-        best.append(ind)
-        fitness.append(ind.fitness.values)
+    best = np.array([ind for ind in hof])
+    fitness = np.array([b.fitness.values for b in best])
+    penalized_igs, lengths = [f[0] for f in fitness], [f[1] for f in fitness]
+    best_index = np.argmax(penalized_igs)
+    best_model = best[best_index]
+    best_func = toolbox.compile(expr=best_model)
+    best_output = best_func(*x).astype(np.float32)
+    best_labels = evals.reclass_result(best_output, prcnt)
+
+    '''
+    names = [el.name for el in best_model]
+    inds = [int(n[1:]) for n in names if n[0] == 'X' and n[1] in np.arange(10).astype(str)]
+    inds = np.unique(inds) - 1
+    index_sets = np.array(list(itertools.combinations(inds, ig)))
+    out = [compute_MI(data[:, i], best_labels.reshape(-1,1)) for i in index_sets]
+    ig_vals = np.array([MI[-1][0] for MI in out])
+    igsum = np.sum(ig_vals)
+    igvar = np.var(np.sort(ig_vals)[-ig:])
+    '''
 
     printf("\n")
     printf("IND\tFITNESS\t\tMODEL\n")
@@ -508,11 +490,8 @@ if __name__ == "__main__":
     printf("file definition end time:  %s\n", time4)
 
     printf("writing data with Class to %s\n", outfile)
-    labels.sort(key = op.itemgetter(0), reverse=True)
-    time5 = time.strftime("%H:%M:%S", time.localtime())
-    printf("sorting end time:  %s\n", time5)
 
-    IO.create_file(x,labels[0][1],outfile)       # use first individual
+    IO.create_file(x, best_labels, outfile)       # use first individual
     #
     # write top model out to file
     #
@@ -529,7 +508,7 @@ if __name__ == "__main__":
     time7 = time.strftime("%H:%M:%S", time.localtime())
     printf("file2 definition end time:  %s\n", time7)
 
-    IO.write_model(moutfile, best)
+    IO.write_model(moutfile, best_model)
     time8 = time.strftime("%H:%M:%S", time.localtime())
     printf("file2 writing end time:  %s\n", time8)
 

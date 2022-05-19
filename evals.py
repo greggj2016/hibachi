@@ -62,29 +62,11 @@ def addnoise(x,pcnt):
 
     return xa.tolist()
 ###############################################################################
-def reclass_result(x, result, pct):
-    """ reclassify data """
-    d = np.array(x).transpose()
-    columns = [0]*len(x)
-    # create columns names for variable number of columns.
-    for i in range(len(x)):
-        columns[i] = 'X' + str(i)
-    
-    df = pd.DataFrame(d, columns=columns)
-    dflen = len(df)
-    np_result = np.array(result)
-
-    df['Class'] = np_result
-
-    df.sort_values('Class', ascending=True, inplace=True)
-    
-    cntl_cnt = dflen - int(dflen * (pct/100.0))
-    c = np.zeros(dflen, dtype=np.int)
-    c[cntl_cnt:] = 1
-
-    df.Class = c
-    df.sort_index(inplace=True)  # put data back in index order
-    return df['Class'].tolist()
+def reclass_result(result, pct):
+    N, sorted_indices = len(result), np.argsort(result)
+    threshold, new_result = int((pct/100)*N), np.zeros(N, dtype = np.int8)
+    new_result[sorted_indices[threshold:]] = 1
+    return(new_result)
 ###############################################################################
 def oddsRatio(data, class_labels, dlen):
     """ returns sums of difference between fixed and odd_ratio """
