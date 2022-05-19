@@ -232,7 +232,7 @@ def evalData(individual, xdata, xtranspose):
     # Transform the tree expression in a callable function
     names = [el.name for el in individual]
     inds = [int(n[1:]) for n in names if n[0] == 'X' and n[1] in np.arange(10).astype(str)]
-    inds = np.unique(inds) - 1
+    inds = np.unique(inds)
     func = toolbox.compile(expr=individual)
 
     # Create class possibility.  
