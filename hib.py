@@ -68,6 +68,7 @@ start = time.time()
 
 maf = options['minor_allele_freq']
 cov = options['covariance_info']
+num_effects = options['num_effects']
 python_scoop = options['python_scoop']
 infile = options['file']
 try:
@@ -290,7 +291,12 @@ def evalData(individual, xdata, xtranspose):
                 ig_vals = np.array([MI[-1][0] for MI in out])
                 igsum = np.sum(ig_vals)
                 igsums = np.append(igsums, igsum)
-                igvar = np.var(np.sort(ig_vals)[-ig:])
+                if len(ig_vals) < num_effects: 
+                    all_parts = np.zeros(num_effects)
+                    all_parts[:len(ig_vals)] += ig_vals
+                    igvar = np.var(all_parts)
+                else:                   
+                    igvar = np.var(np.sort(ig_vals)[-num_effects:])
                 igvars = np.append(igvars, igvar)
 
     if evaluate == 'oddsratio':
@@ -302,6 +308,8 @@ def evalData(individual, xdata, xtranspose):
     igsum_avg = np.mean(igsums)        
     igvar_avg = np.mean(igvars)
     fit_fun = igsum_avg - lam*igvar_avg
+    #if igsum_avg > 0.5:
+    #    pdb.set_trace()
     # print(fit_fun)
     # pdb.set_trace()
     if len(individual) <= 1:
@@ -366,7 +374,7 @@ def hibachi(pop,gen,rseed,showall):
         stats.register("min", np.min, axis=0)
         stats.register("max", np.max, axis=0)
     else:
-        stats = tools.Statistics(lambda ind: max(ind.fitness.values[0],0))
+        stats = tools.Statistics(lambda ind: ind.fitness.values[0])
         stats.register("avg", np.mean)
         stats.register("std", np.std)
         stats.register("min", np.min)
@@ -416,7 +424,7 @@ if __name__ == "__main__":
     # Start evaluation here
     #
     pop, stats, hof, logbook = hibachi(population,generations,rseed,showall)
-    best = np.array([ind for ind in hof])
+    best = np.array([ind for ind in hof], dtype = object)
     fitness = np.array([b.fitness.values for b in best])
     penalized_igs, lengths = [f[0] for f in fitness], [f[1] for f in fitness]
     best_index = np.argmax(penalized_igs)
@@ -484,7 +492,7 @@ if __name__ == "__main__":
     outfile += popstr + '-'
     outfile += genstr + '-'
     outfile += str(evaluate) + "-" + 'ig' + str(ig) + "way"
-    outfile += "_lam" + str(lam) + ".txt" 
+    outfile += "_lam" + str(lam) + "_effs" + str(num_effects) + ".txt" 
 
     time4 = time.strftime("%H:%M:%S", time.localtime())
     printf("file definition end time:  %s\n", time4)
@@ -503,12 +511,12 @@ if __name__ == "__main__":
     moutfile += popstr + '-'
     moutfile += genstr + '-'
     moutfile += str(evaluate) + "-" + 'ig' + str(ig) + "way"
-    moutfile += "_lam" + str(lam) + ".txt" 
+    moutfile += "_lam" + str(lam) + "_effs" + str(num_effects) + ".txt" 
     printf("writing model to %s\n", moutfile)
     time7 = time.strftime("%H:%M:%S", time.localtime())
     printf("file2 definition end time:  %s\n", time7)
 
-    IO.write_model(moutfile, best_model)
+    IO.write_model(moutfile, best)
     time8 = time.strftime("%H:%M:%S", time.localtime())
     printf("file2 writing end time:  %s\n", time8)
 
@@ -530,7 +538,7 @@ if __name__ == "__main__":
             outfile = outdir + 'model_from-' + file1 
             outfile += '-using-' + nfile + '-' + str(rseed) + '-' 
             outfile += str(evaluate) + '-' + str(ig) + "way"
-            outfile += "_lam" + str(lam) + ".txt" 
+            outfile += "_lam" + str(lam) + "_effs" + str(num_effects) + ".txt" 
             printf("%s\n", outfile)
             IO.create_file(X,nresult,outfile)
 

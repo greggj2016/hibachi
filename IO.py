@@ -65,6 +65,7 @@ def get_arguments():
     parser.add_argument('-e', '--evaluation', type=str,
             help='name of evaluation [normal|folds|subsets|noise|oddsratio]' +
                  ' (default=normal) note: oddsratio sets columns == 10')
+    parser.add_argument('-effs', '--num_effects', type=int, help = 'number of effects that you want to simulate')
     parser.add_argument('-f', '--file', type=str,
             help='name of training data file (REQ)' +
                  ' filename of random will create all data')
@@ -154,6 +155,11 @@ def get_arguments():
     else:
         print("exiting: unrecognized value for -python_scoop argument")
         exit()
+
+    if(args.num_effects == None):
+        options['num_effects'] = 1
+    else:
+        options['num_effects'] = args.num_effects
 
     if(args.njobs == None):
         options['njobs'] = 1
@@ -291,10 +297,12 @@ def read_file(fname):
 ###############################################################################
 def write_model(outfile, best):
     """ write top individual out to model file """
-    f = open(outfile, 'w')
-    f.write(str(best[0]))
-    f.write('\n')
-    f.close()
+    functions = [str(b) for b in best]
+    penalized_igs = [b.fitness.values[0] for b in best]
+    lengths = [b.fitness.values[1] for b in best]
+    model_df = pd.DataFrame(np.array([penalized_igs, lengths, functions]).T)
+    model_df.columns = ["penalized_ig", "length", "model"]
+    model_df.to_csv(outfile, sep = "\t", header = True, index = False)
 ###############################################################################
 def read_model(infile):
     f = open(infile, 'r')
