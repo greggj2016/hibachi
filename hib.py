@@ -78,7 +78,7 @@ except:
 population = options['population']
 generations = options['generations']
 rdf_count = options['random_data_files']
-ig = options['information_gain']
+ig_weights = options['information_gain']
 lam = options['L2_penalty']
 rows = options['rows']
 njobs = options['njobs']
@@ -276,28 +276,33 @@ def evalData(individual, xdata, xtranspose):
             xsub = evals.addnoise(x,percent)
 
         else:  # normal or folds
-            if len(inds) < ig: 
-                igsum = 0
-                igsums = np.append(igsums, igsum)
-                igvar = 1
-                igvars = np.append(igvars, igvar)
-            else: 
-                index_sets = np.array(list(itertools.combinations(inds, ig)))
-                data8, result8 = (x_folds[m].T).astype(np.int8), np.array(y_folds[m]).astype(np.int8)
-                if type(evaluate) == type(2): 
-                    indices = np.random.choice(np.arange(len(data8)), evaluate, replace = False)
-                    data8, result8 = data8[indices], result8[0, indices]
-                out = [compute_MI(data8[:, i], result8.reshape(-1,1)) for i in index_sets]
-                ig_vals = np.array([MI[-1][0] for MI in out])
-                igsum = np.sum(ig_vals)
-                igsums = np.append(igsums, igsum)
-                if len(ig_vals) < num_effects: 
-                    all_parts = np.zeros(num_effects)
-                    all_parts[:len(ig_vals)] += ig_vals
-                    igvar = np.var(all_parts)
-                else:                   
-                    igvar = np.var(np.sort(ig_vals)[-num_effects:])
-                igvars = np.append(igvars, igvar)
+            ig_sum_set, ig_var_set = [], []
+            ig_vec = np.where(np.array(ig_weights) != None)[0] + 1
+            for ig, w in zip(ig_vec, ig_weights):
+                if len(inds) < ig and w != 0: 
+                    igsum = 0
+                    igvar = 1
+                    ig_sum_set.append(igsum)
+                    ig_var_set.append(igvar)
+                elif w != 0: 
+                    index_sets = np.array(list(itertools.combinations(inds, ig)))
+                    data8, result8 = (x_folds[m].T).astype(np.int8), np.array(y_folds[m]).astype(np.int8)
+                    if type(evaluate) == type(2): 
+                        indices = np.random.choice(np.arange(len(data8)), evaluate, replace = False)
+                        data8, result8 = data8[indices], result8[0, indices]
+                    out = [compute_MI(data8[:, i], result8.reshape(-1,1)) for i in index_sets]
+                    ig_vals = w*np.array([MI[-1][0] for MI in out])
+                    igsum = np.sum(ig_vals)
+                    if len(ig_vals) < num_effects: 
+                        all_parts = np.zeros(num_effects)
+                        all_parts[:len(ig_vals)] += ig_vals
+                        igvar = np.var(all_parts)
+                    else:                   
+                        igvar = np.var(np.sort(ig_vals)[-num_effects:])
+                    ig_sum_set.append(igsum)
+                    ig_var_set.append(igvar)
+            igsums = np.append(igsums, np.sum(ig_sum_set))
+            igvars = np.append(igvars, np.sum(ig_var_set))
 
     if evaluate == 'oddsratio':
         sum_of_diffs, OR = evals.oddsRatio(xsub, result, inst_length)
@@ -401,7 +406,7 @@ if __name__ == "__main__":
         printf("population:  %d\n", population)
         printf("generations: %d\n", generations)
         printf("evaluation:  %s\n", evaluate)
-        printf("ign 2/3way:  %d\n", ig)
+        printf("ign [1way, 2way, 3way]:  %s\n", str(ig_weights))
     printf("\n")
     # 
     # If model file, ONLY process the model
@@ -491,7 +496,8 @@ if __name__ == "__main__":
     outfile += 's' + str(rseed) + '-' 
     outfile += popstr + '-'
     outfile += genstr + '-'
-    outfile += str(evaluate) + "-" + 'ig' + str(ig) + "way"
+    ig_label = str(ig_weights[0]) + 'ig1_' + str(ig_weights[1])  + 'ig2_' + str(ig_weights[2]) + 'ig3'
+    outfile += str(evaluate) + "-" + ig_label
     outfile += "_lam" + str(lam) + "_effs" + str(num_effects) + ".txt" 
 
     time4 = time.strftime("%H:%M:%S", time.localtime())
@@ -510,7 +516,8 @@ if __name__ == "__main__":
     moutfile += 's' + str(rseed) + '-' 
     moutfile += popstr + '-'
     moutfile += genstr + '-'
-    moutfile += str(evaluate) + "-" + 'ig' + str(ig) + "way"
+    ig_label = str(ig_weights[0]) + 'ig1_' + str(ig_weights[1])  + 'ig2_' + str(ig_weights[2]) + 'ig3'
+    moutfile += str(evaluate) + "-" + ig_label
     moutfile += "_lam" + str(lam) + "_effs" + str(num_effects) + ".txt" 
     printf("writing model to %s\n", moutfile)
     time7 = time.strftime("%H:%M:%S", time.localtime())

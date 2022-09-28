@@ -73,7 +73,13 @@ def get_arguments():
     parser.add_argument("-g", "--generations", type=int, 
             help="number of generations (default=40)")
     parser.add_argument("-i", "--information_gain", type=int, 
-            help="information gain 2 way or 3 way (default=2)")
+            help="information gain 1 way, 2 way, or 3 way (default=2)")
+    parser.add_argument("-i1", "--one_way_information_gain", type=float, default = 0,
+            help="information gain 1 way, 2 way, or 3 way (default=0)")
+    parser.add_argument("-i2", "--two_way_information_gain", type=float, default = 0,
+            help="information gain 1 way, 2 way, or 3 way (default=0)")
+    parser.add_argument("-i3", "--three_way_information_gain", type=float, default = 0,
+            help="information gain 1 way, 2 way, or 3 way (default=0)")
     parser.add_argument("-m", "--model_file", type=str, 
             help="model file to use to create Class from; otherwise \
                   analyze data for new model.  Other options available \
@@ -209,10 +215,17 @@ def get_arguments():
     else:
         options['population'] = args.population
 
-    if(args.information_gain == None):
-        options['information_gain'] = 2
+    ig_weights = [args.one_way_information_gain, args.two_way_information_gain, args.three_way_information_gain]
+    if(np.all(np.array(ig_weights) == 0)):
+        if(args.information_gain == None):
+            ig_weights = [0, 1, 0] # maximizes 2 way information gain by default
+            options['information_gain'] = ig_weights
+        else:
+            ig_weights = np.zeros(3)
+            ig_weights[args.information_gain] = 1
+            options['information_gain'] = ig_weights
     else:
-        options['information_gain'] = args.information_gain
+        options['information_gain'] = ig_weights
 
     if(args.random_data_files == None):
         options['random_data_files'] = 0
